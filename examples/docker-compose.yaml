@@ -1,0 +1,74 @@
+name: grafana-sidecar-example
+
+# A complete, self-contained demo:
+#   docker-socket-proxy -> least-privilege Docker API access (read-only)
+#   grafana-sidecar     -> downloads label-declared dashboards into the shared volume
+#   grafana             -> provisions them from that volume (file provider, rescans)
+#   prometheus          -> a datasource for the example dashboard
+#   node-exporter       -> example workload that declares its dashboard as a label
+#
+# Try it:  docker compose up -d
+# Then open http://localhost:3000 (admin/admin) and find the "System" folder.
+
+services:
+  docker-socket-proxy:
+    image: ghcr.io/tecnativa/docker-socket-proxy:0.3.0
+    environment:
+      CONTAINERS: 1
+      EVENTS: 1
+      PING: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+
+  grafana-sidecar:
+    image: ghcr.io/davidborzek/grafana-sidecar:latest
+    environment:
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
+      GRAFANA_SIDECAR_DASHBOARDS_DIR: /dashboards
+    volumes:
+      - dashboards:/dashboards # read-write: grafana-sidecar owns this directory
+    depends_on:
+      - docker-socket-proxy
+    restart: unless-stopped
+    labels:
+      # dogfooding: grafana-sidecar provisions its own dashboard
+      grafana.dashboard.url: https://raw.githubusercontent.com/davidborzek/grafana-sidecar/main/dashboards/grafana-dashboard.json
+      grafana.dashboard.datasource: Prometheus
+      grafana.dashboard.folder: Observability
+
+  grafana:
+    image: grafana/grafana:11.6.1
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - dashboards:/var/lib/grafana/dashboards-remote:ro # read-only mirror
+    depends_on:
+      - grafana-sidecar
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    restart: unless-stopped
+
+  # Example workload. Its dashboard lives right next to the service, as a label.
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.8.2
+    command: ["--path.rootfs=/host"]
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    labels:
+      grafana.dashboard.gnetId: "1860"
+      grafana.dashboard.revision: "45"
+      grafana.dashboard.datasource: Prometheus
+      grafana.dashboard.folder: System
+    restart: unless-stopped
+
+volumes:
+  dashboards:

@@ -1,0 +1,39 @@
+# Prometheus alerting rules for grafana-sidecar. Load via rule_files in prometheus.yml.
+groups:
+  - name: grafana-sidecar
+    rules:
+      - alert: GrafanaSidecarNotReady
+        expr: grafana_sidecar_ready == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "grafana-sidecar's last reconcile did not succeed"
+          description: "grafana_sidecar_ready has been 0 for 5m on {{ $labels.instance }} — provisioned dashboards may be out of date."
+
+      - alert: GrafanaSidecarReconcileStale
+        expr: (time() - grafana_sidecar_last_reconcile_success_timestamp_seconds > 900) and (grafana_sidecar_last_reconcile_success_timestamp_seconds > 0)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "grafana-sidecar reconciliation is stale"
+          description: "No successful reconcile for >15m on {{ $labels.instance }}; the provisioned dashboards may be out of date."
+
+      - alert: GrafanaSidecarDownloadsFailing
+        expr: grafana_sidecar_failed_downloads > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "grafana-sidecar cannot download some dashboards"
+          description: "{{ $value }} dashboard(s) failed to download on {{ $labels.instance }} — check the gnetId/revision or url labels and network egress."
+
+      - alert: GrafanaSidecarWatchFlapping
+        expr: rate(grafana_sidecar_watch_restarts_total[5m]) > 0
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "grafana-sidecar's Docker event watcher is flapping"
+          description: "The Docker event stream keeps being re-established on {{ $labels.instance }} — usually Docker API instability."
