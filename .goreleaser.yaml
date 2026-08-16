@@ -1,0 +1,39 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: grafana-sidecar
+    main: ./cmd/grafana-sidecar
+    binary: grafana-sidecar
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: grafana-sidecar
+    formats: [tar.gz]
+    name_template: "grafana-sidecar_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+# Container images are built natively (amd64 + arm64 runners, no QEMU) by the
+# release workflow's matrix; goreleaser only produces the binaries + archives.
+# release-please already created the GitHub release; goreleaser appends the
+# built artifacts to it, and the changelog is owned by release-please.
+release:
+  mode: append
+
+changelog:
+  disable: true
