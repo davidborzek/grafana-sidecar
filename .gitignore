@@ -1,0 +1,7 @@
+# build output
+/grafana-sidecar
+/dist/
+
+# test / coverage
+*.out
+*.tmp
