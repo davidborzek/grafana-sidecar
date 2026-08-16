@@ -1,0 +1,11 @@
+apiVersion: 1
+providers:
+  - name: remote
+    type: file
+    allowUiUpdates: false
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    options:
+      # the volume grafana-sidecar writes into, mounted read-only here
+      path: /var/lib/grafana/dashboards-remote
+      foldersFromFilesStructure: true
